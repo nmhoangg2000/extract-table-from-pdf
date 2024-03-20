@@ -1,7 +1,7 @@
 from openpyxl import load_workbook
 
 # Load the workbook and specify the path to your Excel file
-wb = load_workbook(r'F:\Code\NLP\extract_table\perfect.xlsx')
+wb = load_workbook(r'E:\mcc\extract_table\perfect.xlsx')
 
 # Access the first sheet to get the values from the first row
 first_sheet = wb[wb.sheetnames[0]]
@@ -49,6 +49,24 @@ for name in sheet_names:
 rows_to_delete.reverse()
 
 
+# # Function to check if a row is blank
+# def is_row_blank(row):
+#     return all(cell.value is None for cell in row)
+
+# # Iterate over all sheets in the workbook
+# for sheet_name in wb.sheetnames:
+#     sheet = wb[sheet_name]
+#     blank_row_indexes = []
+    
+#     # Identify blank rows
+#     for row in sheet.iter_rows():
+#         if is_row_blank(row):
+#             blank_row_indexes.append(row[0].row)
+    
+#     # Delete blank rows from the bottom up
+#     for row_index in reversed(blank_row_indexes):
+#         sheet.delete_rows(row_index)
+
 # Values to be used as headers and their respective first row data
 header_and_first_row_values = [
     (wb[wb.sheetnames[0]]['B1'].value, wb[wb.sheetnames[0]]['C1'].value),  # Pair for the first new column
@@ -68,6 +86,12 @@ for sheet_name in wb.sheetnames[1:]:
         sheet.cell(row=1, column=i, value=header)
         sheet.cell(row=2, column=i, value=first_row_value)
 
+         # Fill any remaining blank cells in these columns with the respective values
+        max_row = sheet.max_row
+        for row in range(3, max_row + 1):  # Start filling from row 3
+            if sheet.cell(row=row, column=i).value is None:
+                sheet.cell(row=row, column=i, value=first_row_value)
+
 
 # Iterate over all sheets in the workbook
 for sheet_name in wb.sheetnames:
@@ -76,6 +100,51 @@ for sheet_name in wb.sheetnames:
     sheet.delete_cols(1)
 
 
+from openpyxl.utils import get_column_letter
+
+# Function to combine cell values, avoiding internal duplicates
+def combine_unique_values(upper_value, lower_value):
+    combined = f"{upper_value}, {lower_value}".strip()  # Initial combination
+    unique_values = set(combined.split(", "))  # Split by comma and convert to set for uniqueness
+    return ', '.join(unique_values)  # Re-join unique values
+
+# Iterate over all sheets in the workbook
+for sheet_name in wb.sheetnames:
+    sheet = wb[sheet_name]
+
+    # Find the 'STT' column index
+    stt_col_index = None
+    for col in sheet.iter_cols(max_row=1):
+        for cell in col:
+            if cell.value == 'STT':
+                stt_col_index = cell.col_idx
+                break
+        if stt_col_index:
+            break
+
+    # If 'STT' column is not found, skip this sheet
+    if not stt_col_index:
+        continue  # Proceed to the next sheet
+
+    # Check adjacent cells for duplicates in the 'STT' column
+    row = 2
+    while row < sheet.max_row:
+        current_stt = sheet.cell(row=row, column=stt_col_index).value
+        next_stt = sheet.cell(row=row+1, column=stt_col_index).value
+        
+        if current_stt == next_stt:
+            # Loop over all columns to combine values, avoiding internal duplicates
+            for col in range(1, sheet.max_column + 1):
+                upper_cell = sheet.cell(row=row, column=col)
+                lower_cell = sheet.cell(row=row+1, column=col)
+                # Skip combining 'STT' column values
+                if col != stt_col_index:
+                    upper_cell.value = combine_unique_values(upper_cell.value, lower_cell.value)
+            # Delete the next row after combining values
+            sheet.delete_rows(row+1)
+        else:
+            row += 1  # Increment row index if not deleting
+
 
 # Save the updated workbook to a new file
-wb.save('final.xlsx')
+wb.save('final2.xlsx')
